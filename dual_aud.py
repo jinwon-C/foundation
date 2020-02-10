@@ -1,17 +1,25 @@
 import numpy as np
+import keras as kr
 import tensorflow as tf
 #import tensorflow.compat.v1 as tf
 #tf.disable_v2_behavior()
 import dual_foundation as fd
 from sklearn.model_selection import KFold
+from sklearn.metrics import precision_score, recall_score, confusion_matrix, classification_report, accuracy_score, f1_score
 
 batch_size = 64
 num_freq = 10
 num_data = 510
 num_total_data = num_freq * num_data
 num_kfold = 5
+count = 0
 
 filter_size = [3, 3]
+
+result_accuracy = np.zeros(shape=(num_kfold))
+result_precision = np.zeros(shape=(num_kfold))
+result_recall = np.zeros(shape=(num_kfold))
+result_f1 = np.zeros(shape=(num_kfold))
 
 directory = '../data/20191208-3d/log10(abs)+imag/win5000/'
 
@@ -42,7 +50,7 @@ for train_index, test_index in kf.split(data):
 
     with tf.device('/gpu:2'):
         x1 = tf.placeholder(tf.float32, [None, num_total_data])
-        y1 = tf.placeholder(tf.float32, [None, num_class])
+        y = tf.placeholder(tf.float32, [None, num_class])
 
         W_conv11 = fd.weight_variable(filter_size, 1, 4)
         b_conv11 = fd.bias_variable([4])
@@ -66,12 +74,11 @@ for train_index, test_index in kf.split(data):
         h_pool14 = fd.max_pool(h_conv14, 1, 2)
 
         keep_prob = tf.placeholder(tf.float32)
-        #rate = 1 - keep_prob
-        #dr = tf.nn.dropout(h_pool4, rate)
+        dr11 = tf.nn.dropout(h_pool14, keep_prob)
 
         W_conv15 = fd.weight_variable(filter_size, 32, 64)
         b_conv15 = fd.bias_variable([64])
-        h_conv15 = tf.nn.relu(fd.conv2d(h_conv14, W_conv15) + b_conv15)
+        h_conv15 = tf.nn.relu(fd.conv2d(dr11, W_conv15) + b_conv15)
         h_pool15 = fd.max_pool(h_conv15, 2, 2)
 
         W_conv16 = fd.weight_variable(filter_size, 64, 128)
@@ -94,20 +101,21 @@ for train_index, test_index in kf.split(data):
         h_conv19 = tf.nn.relu(fd.conv2d(h_pool18, W_conv19) + b_conv19)
         h_pool19 = fd.max_pool(h_conv19, 2, 2)
 
-        flat1 = tf.reshape(h_pool19, [-1, 1024])
+        dr12 = tf.nn.dropout(h_pool19, keep_prob)
+
+        flat1 = tf.reshape(dr12, [-1, 1024])
 
         W_fc1 = fd.weight_variable_fc([1024, num_class])
         b_fc1 = fd.bias_variable([num_class])
         y_conv1 = tf.nn.softmax(tf.matmul(flat1, W_fc1) + b_fc1)
 
-        cross_entropy1 = -tf.reduce_sum(y1 * tf.log(tf.clip_by_value(y_conv1, 1e-10, 1.0)))
+        cross_entropy1 = -tf.reduce_sum(y * tf.log(tf.clip_by_value(y_conv1, 1e-10, 1.0)))
         train_step1 = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy1)
-        correct_prediction1 = tf.equal(tf.argmax(y_conv1, 1), tf.argmax(y1, 1))
+        correct_prediction1 = tf.equal(tf.argmax(y_conv1, 1), tf.argmax(y, 1))
         accuracy1 = tf.reduce_mean(tf.cast(correct_prediction1, tf.float32))
 
 
         x2 = tf.placeholder(tf.float32, [None, num_total_data])
-        y2 = tf.placeholder(tf.float32, [None, num_class])
 
         W_conv21 = fd.weight_variable(filter_size, 1, 4)
         b_conv21 = fd.bias_variable([4])
@@ -130,13 +138,11 @@ for train_index, test_index in kf.split(data):
         h_conv24 = tf.nn.relu(fd.conv2d(h_pool23, W_conv24) + b_conv24)
         h_pool24 = fd.max_pool(h_conv24, 1, 2)
 
-        keep_prob = tf.placeholder(tf.float32)
-        #rate = 1 - keep_prob
-        #dr = tf.nn.dropout(h_pool4, rate)
+        dr21 = tf.nn.dropout(h_pool24, keep_prob)
 
         W_conv25 = fd.weight_variable(filter_size, 32, 64)
         b_conv25 = fd.bias_variable([64])
-        h_conv25 = tf.nn.relu(fd.conv2d(h_conv24, W_conv25) + b_conv25)
+        h_conv25 = tf.nn.relu(fd.conv2d(dr21, W_conv25) + b_conv25)
         h_pool25 = fd.max_pool(h_conv25, 2, 2)
 
         W_conv26 = fd.weight_variable(filter_size, 64, 128)
@@ -159,31 +165,73 @@ for train_index, test_index in kf.split(data):
         h_conv29 = tf.nn.relu(fd.conv2d(h_pool28, W_conv29) + b_conv29)
         h_pool29 = fd.max_pool(h_conv29, 2, 2)
 
-        flat2 = tf.reshape(h_pool29, [-1, 1024])
+        dr22 = tf.nn.dropout(h_pool29, keep_prob)
+
+        flat2 = tf.reshape(dr22, [-1, 1024])
 
         W_fc2 = fd.weight_variable_fc([1024, num_class])
         b_fc2 = fd.bias_variable([num_class])
         y_conv2 = tf.nn.softmax(tf.matmul(flat2, W_fc2) + b_fc2)
 
-        cross_entropy2 = -tf.reduce_sum(y2 * tf.log(tf.clip_by_value(y_conv2, 1e-10, 1.0)))
+        cross_entropy2 = -tf.reduce_sum(y * tf.log(tf.clip_by_value(y_conv2, 1e-10, 1.0)))
         train_step2 = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy2)
-        correct_prediction2 = tf.equal(tf.argmax(y_conv2, 1), tf.argmax(y2, 1))
+        correct_prediction2 = tf.equal(tf.argmax(y_conv2, 1), tf.argmax(y, 1))
         accuracy2 = tf.reduce_mean(tf.cast(correct_prediction2, tf.float32))
+
+        concat_layer = kr.layers.Concatenate()([flat1, flat2])
+
+        W_fc3 = fd.weight_variable_fc([2048, num_class])
+        b_fc3 = fd.bias_variable([num_class])
+        y_conv3 = tf.nn.softmax(tf.matmul(concat_layer, W_fc3) + b_fc3)
+
+        cross_entropy3 = -tf.reduce_sum(y * tf.log(tf.clip_by_value(y_conv3, 1e-10, 1.0)))
+        train_step3 = tf.train.AdamOptimizer(1e-4).minimize(cross_entropy3)
+        correct_prediction3 = tf.equal(tf.argmax(y_conv3, 1), tf.argmax(y, 1))
+        accuracy3 = tf.reduce_mean(tf.cast(correct_prediction3, tf.float32))
 
     sess = tf.InteractiveSession()
     sess.run(tf.global_variables_initializer())
 
     train_x = np.array(train_x).reshape(len(train_x), 2*num_total_data)
     train_y = np.array(train_y).reshape(len(train_y), num_class)
+    train_abs = train_x[:,0: num_total_data]
+    train_imag = train_x[:, num_total_data:2*num_total_data]
+    test_x = np.array(test_x).reshape(len(test_x), 2*num_total_data)
+    test_y = np.array(test_y).reshape(len(test_y), num_class)
+    test_abs = test_x[:,0: num_total_data]
+    test_imag = test_x[:, num_total_data:2*num_total_data]
 
     for j in range(20000):
         batch_x, batch_y = fd.get_batch(batch_size, train_x, train_y)
         batch_abs = batch_x[:,0: num_total_data]
-        batch_imag = batch_x[: num_total_data:2*num_total_data]
-        train_step1.run(session=sess, feed_dict={x1:batch_abs, y1:batch_y, keep_prob:0.5})
+        batch_imag = batch_x[:, num_total_data:2*num_total_data]
+        train_step1.run(session=sess, feed_dict={x1:batch_abs, x2:batch_imag, y:batch_y, keep_prob:0.5})
         if j%100==0:
             #train_accuracy = accuracy1.eval(feed_dict={x1:train_x, y1:train_y, keep_prob:1.0})
-            train_accuracy = accuracy1.eval(feed_dict={x1:batch_abs, y1:batch_y, keep_prob:1.0})
-            print('step', j, 'accuracy : ', train_accuracy)
-            #print('test accuracy : ', sess.run(accuracy1, feed_dict={x2:test_x, y1:test_y, keep_prob:1.0}))
-            #print('test accuracy : ', sess.run(accuracy1, feed_dict={x2:batch_imag, y2:batch_y, keep_prob:1.0}))
+            #train_accuracy = accuracy3.eval(feed_dict={x1:train_abs, x2:train_imag, y:batch_y, keep_prob:1.0})
+            train_accuracy = accuracy1.eval(feed_dict={x1:train_abs, x2:train_imag, y:train_y, keep_prob:1})
+            print('step', j, 'batch accuracy : ', train_accuracy)
+            print('abs  test accuracy : ', sess.run(accuracy1, feed_dict={x1:test_abs, y:test_y, keep_prob:1}))
+            print('imag test accuracy : ', sess.run(accuracy2, feed_dict={x2:test_imag, y:test_y, keep_prob:1}))
+            print('dual test accuracy : ', sess.run(accuracy3, feed_dict={x1:test_abs, x2:test_imag, y:test_y, keep_prob:1}))
+            #print('test accuracy : ', sess.run(accuracy1, feed_dict={x1:batch_abs, x2:batch_imag, y1:batch_y, y2:batch_y, keep_prob:1.0}))
+
+    yPreTmp = tf.argmax(y_conv1, 1)
+    val_acc, yPred = sess.run([accuracy1, yPreTmp], feed_dict={x1: test_abs, x2:test_imag, y:test_y, keep_prob: 1.0})
+    yTrue = np.argmax(test_y, 1)
+    print("test finish")
+
+    result_accuracy[count] = accuracy_score(yTrue, yPred)
+    result_precision[count] = precision_score(yTrue, yPred, average = 'macro')
+    result_recall[count] = recall_score(yTrue, yPred, average = 'macro')
+    result_f1[count] = f1_score(yTrue, yPred, average = 'macro')
+    result_confusion = str(confusion_matrix(yTrue, yPred))
+    print("%d-fold %dth" % (num_kfold, count+1))
+    print("accuracy : " + str(result_accuracy[count]))
+    print("precision : " + str(result_precision[count]))
+    print("recall : " + str(result_recall[count]))
+    print("f1 Score : " + str(result_f1[count]))
+    print("confusion matrix\n" + result_confusion)
+    count += 1
+
+    sess.close()
