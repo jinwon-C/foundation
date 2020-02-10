@@ -21,7 +21,7 @@ result_precision = np.zeros(shape=(num_kfold))
 result_recall = np.zeros(shape=(num_kfold))
 result_f1 = np.zeros(shape=(num_kfold))
 
-directory = '../data/20191208-3d/log10(abs)+imag/win5000/'
+directory = '../data/20191208-3d/real+imag/win5000/'
 
 data, num_class = fd.read_data(directory)
 
@@ -194,30 +194,30 @@ for train_index, test_index in kf.split(data):
 
     train_x = np.array(train_x).reshape(len(train_x), 2*num_total_data)
     train_y = np.array(train_y).reshape(len(train_y), num_class)
-    train_abs = train_x[:,0: num_total_data]
+    train_real = train_x[:,0: num_total_data]
     train_imag = train_x[:, num_total_data:2*num_total_data]
     test_x = np.array(test_x).reshape(len(test_x), 2*num_total_data)
     test_y = np.array(test_y).reshape(len(test_y), num_class)
-    test_abs = test_x[:,0: num_total_data]
+    test_real = test_x[:,0: num_total_data]
     test_imag = test_x[:, num_total_data:2*num_total_data]
 
-    for j in range(20000):
+    for j in range(20):
         batch_x, batch_y = fd.get_batch(batch_size, train_x, train_y)
-        batch_abs = batch_x[:,0: num_total_data]
+        batch_real = batch_x[:,0: num_total_data]
         batch_imag = batch_x[:, num_total_data:2*num_total_data]
-        train_step1.run(session=sess, feed_dict={x1:batch_abs, x2:batch_imag, y:batch_y, keep_prob:0.5})
+        train_step1.run(session=sess, feed_dict={x1:batch_real, x2:batch_imag, y:batch_y, keep_prob:0.5})
         if j%100==0:
             #train_accuracy = accuracy1.eval(feed_dict={x1:train_x, y1:train_y, keep_prob:1.0})
-            #train_accuracy = accuracy3.eval(feed_dict={x1:train_abs, x2:train_imag, y:batch_y, keep_prob:1.0})
-            train_accuracy = accuracy1.eval(feed_dict={x1:train_abs, x2:train_imag, y:train_y, keep_prob:1})
+            #train_accuracy = accuracy3.eval(feed_dict={x1:train_real, x2:train_imag, y:batch_y, keep_prob:1.0})
+            train_accuracy = accuracy1.eval(feed_dict={x1:train_real, x2:train_imag, y:train_y, keep_prob:1})
             print('step', j, 'batch accuracy : ', train_accuracy)
-            print('abs  test accuracy : ', sess.run(accuracy1, feed_dict={x1:test_abs, y:test_y, keep_prob:1}))
+            print('real test accuracy : ', sess.run(accuracy1, feed_dict={x1:test_real, y:test_y, keep_prob:1}))
             print('imag test accuracy : ', sess.run(accuracy2, feed_dict={x2:test_imag, y:test_y, keep_prob:1}))
-            print('dual test accuracy : ', sess.run(accuracy3, feed_dict={x1:test_abs, x2:test_imag, y:test_y, keep_prob:1}))
-            #print('test accuracy : ', sess.run(accuracy1, feed_dict={x1:batch_abs, x2:batch_imag, y1:batch_y, y2:batch_y, keep_prob:1.0}))
+            print('dual test accuracy : ', sess.run(accuracy3, feed_dict={x1:test_real, x2:test_imag, y:test_y, keep_prob:1}))
+            #print('test accuracy : ', sess.run(accuracy1, feed_dict={x1:batch_real, x2:batch_imag, y1:batch_y, y2:batch_y, keep_prob:1.0}))
 
     yPreTmp = tf.argmax(y_conv1, 1)
-    val_acc, yPred = sess.run([accuracy1, yPreTmp], feed_dict={x1: test_abs, x2:test_imag, y:test_y, keep_prob: 1.0})
+    val_acc, yPred = sess.run([accuracy1, yPreTmp], feed_dict={x1: test_real, x2:test_imag, y:test_y, keep_prob: 1.0})
     yTrue = np.argmax(test_y, 1)
     print("test finish")
 
